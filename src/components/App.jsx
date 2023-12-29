@@ -1,5 +1,5 @@
 import css from './Styles.module.css';
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 
 import { ImageGallery } from './ImageGallery/ImageGallery';
 import { Searchbar } from './Searchbar/Searchbar';
@@ -8,95 +8,70 @@ import { Loader } from './Loader/Loader';
 import { Modal } from './Modal/Modal';
 import { fetchData } from 'servises/api';
 
-export class App extends Component {
-  state = {
-    searchTerm: '',
-    images: [],
-    page: 1,
-    error: null,
-    isLoading: false,
-    showModal: false,
-    selectedImage: '',
-    loadMore: true,
+export const App = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [images, setImages] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
+  const [loadMore, setLoadMore] = useState(true);
+
+  const loadMoreHandler = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  handleSearch = async () => {
-    const { searchTerm, page } = this.state;
-
-    try {
-      this.setState({ isLoading: true });
-
-      const data = await fetchData(searchTerm, page);
-
-      this.setState(prevState => ({
-        images: [...prevState.images, ...data.hits],
-        loadMore: page < Math.ceil(data.totalHits / 12),
-      }));
-    } catch (error) {
-    } finally {
-      this.setState({ isLoading: false });
-    }
+  const openModal = largeImageURL => {
+    setSelectedImage(largeImageURL);
+    setShowModal(true);
   };
 
-  loadMoreHandler = () => {
-    this.setState(
-      prevState => ({ page: prevState.page + 1 })
-      // this.handleSearch
-    );
+  const closeModal = () => {
+    setSelectedImage('');
+    setShowModal(false);
   };
 
-  openModal = largeImageURL => {
-    this.setState({ selectedImage: largeImageURL, showModal: true });
-  };
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.code === 'Escape') {
+        closeModal();
+      }
+    };
 
-  closeModal = () => {
-    this.setState({ selectedImage: '', showModal: false });
-  };
+    document.addEventListener('keydown', handleKeyDown);
 
-  handleKeyDown = e => {
-    if (e.code === 'Escape') {
-      this.closeModal();
-    }
-  };
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
-  componentDidMount() {
-    document.addEventListener('keydown', this.handleKeyDown);
-  }
+  useEffect(() => {
+    if (!searchTerm) return;
 
-  componentWillUnmount() {
-    document.removeEventListener('keydown', this.handleKeyDown);
-  }
+    const handleSearch = async () => {
+      try {
+        setIsLoading(true);
 
-  componentDidUpdate(prevProps, prevState) {
-    if (
-      this.state.page !== prevState.page ||
-      this.state.searchTerm !== prevState.searchTerm
-    ) {
-      this.handleSearch();
-    }
-  }
+        const data = await fetchData(searchTerm, page);
 
-  render() {
-    const { images, isLoading, showModal, selectedImage, loadMore } =
-      this.state;
+        setImages(prevImages => [...prevImages, ...data.hits]);
+        setLoadMore(page < Math.ceil(data.totalHits / 12));
+      } catch (error) {
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    handleSearch();
+  }, [page, searchTerm]);
 
-    return (
-      <div className={css.App}>
-        <Searchbar
-          onSubmit={query => this.setState({ searchTerm: query })}
-        ></Searchbar>
-        <ImageGallery
-          images={images}
-          onImageClick={this.openModal}
-        ></ImageGallery>
-        {isLoading && <Loader />}
-        {loadMore && images.length > 0 && (
-          <Button onClick={this.loadMoreHandler} />
-        )}
-        {showModal && (
-          <Modal largeImage={selectedImage} onClose={this.closeModal} />
-        )}
-      </div>
-    );
-  }
-}
+  return (
+    <div className={css.App}>
+      <Searchbar onSubmit={query => setSearchTerm(query)}></Searchbar>
+      <ImageGallery images={images} onImageClick={openModal}></ImageGallery>
+      {isLoading && <Loader />}
+      {loadMore && images.length > 0 && <Button onClick={loadMoreHandler} />}
+      {showModal && <Modal largeImage={selectedImage} onClose={closeModal} />}
+    </div>
+  );
+};
